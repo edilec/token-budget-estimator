@@ -1,0 +1,17 @@
+{
+  "name": "token-budget-estimator",
+  "version": "0.0.0",
+  "description": "Estimate input and output tokens before a workflow spends a model budget.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edilec/token-budget-estimator"
+  }
+}
