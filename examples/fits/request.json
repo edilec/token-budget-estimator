@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "1",
+  "messages": [
+    {
+      "id": "system-turn",
+      "role": "system",
+      "text": "You are the support triage assistant for a multilingual help desk.\nAnswer in the language the customer wrote in, and cite the article you used."
+    },
+    {
+      "id": "customer-turn",
+      "role": "user",
+      "name": "customer-4821",
+      "text": "مرحبا! The label printer prints mojibake.\nScreenshot caption: 日本語のラベルが壊れています。\nPriority flag: 🚨 assigned to 👩‍💻 on-call.\nCustomer name as typed: José (combining acute, not the precomposed form).\nHindi note: प्रिंटर काम नहीं कर रहा है।"
+    },
+    {
+      "id": "article-search-result",
+      "role": "tool",
+      "text": "article-search returned 2 rows:\n  KB-1180  Label encoding on thermal printers (UTF-8 vs CP437)\n  KB-2042  Changing the printer character set from the admin console"
+    }
+  ],
+  "tools": [
+    {
+      "name": "article-search",
+      "description": "Search the public knowledge base and return matching article identifiers.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Free text to search for."
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "ar",
+              "de",
+              "en",
+              "hi",
+              "ja"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 25
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "escalate",
+      "description": "Open a priority ticket for the on-call engineer.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "high",
+              "low",
+              "medium"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 280
+          }
+        },
+        "required": [
+          "severity",
+          "summary"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

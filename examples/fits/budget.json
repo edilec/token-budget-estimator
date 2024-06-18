@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1",
+  "model": "house-bytes",
+  "profiles": {
+    "house-bytes": {
+      "tokenizer": "utf8-bytes",
+      "contextTokens": 8192,
+      "reserveOutputTokens": 1024,
+      "minOutputTokens": 512,
+      "overhead": {
+        "perMessage": 4,
+        "perMessageName": 1,
+        "perToolDefinition": 8,
+        "toolsPreamble": 16,
+        "replyPrimer": 3
+      }
+    },
+    "vendor-large": {
+      "tokenizer": "o200k_base",
+      "contextTokens": 6000,
+      "reserveOutputTokens": 1024,
+      "estimateCharsPerToken": 3.8,
+      "estimateTolerance": 0.3,
+      "overhead": {
+        "perMessage": 4,
+        "perMessageName": 1,
+        "perToolDefinition": 8,
+        "toolsPreamble": 16,
+        "replyPrimer": 3
+      }
+    }
+  }
+}
