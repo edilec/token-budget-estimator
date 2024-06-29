@@ -514,14 +514,39 @@ function countTool(sink, file, profile, tool, limits, state) {
     if (tool.parameters !== undefined) schema.parameters = tool.parameters
     const serialised = canonicalJson(schema, limits.maxSchemaDepth)
     if (!serialised.ok) {
+      /**
+       * An unpaired surrogate in a tool is the same defect as one in a message
+       * text, and it reaches the same rule. It arrives by a different road:
+       * `JSON.stringify` escapes a lone surrogate into six well-formed
+       * characters, so by the time the serialisation existed there was nothing
+       * left for `hasLoneSurrogate` to find, and 47 characters of escape text
+       * were counted as an exact measurement of a string the provider will
+       * never receive. `canonicalJson` refuses the string instead.
+       */
+      const reasons = {
+        'too-deep': {
+          ruleId: 'tool-schema-too-deep',
+          message: `Tool "${tool.name}" has a schema deeper than the maxSchemaDepth limit of ${limits.maxSchemaDepth}; it was not serialised and not counted.`,
+          suggestion: 'Raise --max-schema-depth, or flatten the schema.',
+        },
+        'lone-surrogate': {
+          ruleId: 'text-lone-surrogate',
+          message: `Tool "${tool.name}" carries an unpaired surrogate, which no UTF-8 encoder can represent; it was not counted, because serialising it would escape the surrogate into text the provider never receives and return a different number without saying so.`,
+          suggestion: 'Repair the text at its source. A lone surrogate usually means a string was cut in the middle of an astral character.',
+        },
+        'not-serialisable': {
+          ruleId: 'tool-schema-invalid',
+          message: `Tool "${tool.name}" has a schema this tool cannot serialise deterministically, so it was not counted.`,
+          suggestion: undefined,
+        },
+      }
+      const refusal = reasons[serialised.reason]
       sink.add({
         file,
-        ruleId: serialised.reason === 'too-deep' ? 'tool-schema-too-deep' : 'tool-schema-invalid',
+        ruleId: refusal.ruleId,
         pointer: `${tool.pointer}${serialised.pointer}`,
-        message: serialised.reason === 'too-deep'
-          ? `Tool "${tool.name}" has a schema deeper than the maxSchemaDepth limit of ${limits.maxSchemaDepth}; it was not serialised and not counted.`
-          : `Tool "${tool.name}" has a schema this tool cannot serialise deterministically, so it was not counted.`,
-        suggestion: serialised.reason === 'too-deep' ? 'Raise --max-schema-depth, or flatten the schema.' : undefined,
+        message: refusal.message,
+        suggestion: refusal.suggestion,
       })
       state.incomplete = true
       state.uncounted += 1

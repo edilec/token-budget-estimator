@@ -137,7 +137,17 @@ export const ZERO_BOUNDS = Object.freeze({ lower: 0, point: 0, upper: 0 })
  * its own. That difference is exactly what `overhead.perToolDefinition` is for,
  * and the README says so rather than implying a fidelity this cannot have.
  *
- * @returns {{ok: true, text: string}|{ok: false, reason: 'too-deep'|'not-serialisable', pointer: string}}
+ * A string carrying an unpaired surrogate is refused here rather than written.
+ * `JSON.stringify` turns a lone surrogate into the six characters `\uD83D` --
+ * well-formed text that no longer contains a surrogate at all -- so counting
+ * the serialisation would count six characters that the provider will never
+ * receive, `hasLoneSurrogate` would see nothing wrong with the result, and the
+ * run would report `pass` with `uncounted: 0`. That is exactly what this
+ * package shipped: the guarantee held for message text and was silently absent
+ * for every tool description and every schema. It is refused for a key as well
+ * as for a value, because `JSON.stringify` escapes both the same way.
+ *
+ * @returns {{ok: true, text: string}|{ok: false, reason: 'too-deep'|'not-serialisable'|'lone-surrogate', pointer: string}}
  */
 export function canonicalJson(value, maxDepth) {
   const write = (node, depth, pointer) => {
@@ -148,7 +158,10 @@ export function canonicalJson(value, maxDepth) {
       if (!Number.isFinite(node)) return { ok: false, reason: 'not-serialisable', pointer }
       return { ok: true, text: JSON.stringify(node) }
     }
-    if (typeof node === 'string') return { ok: true, text: JSON.stringify(node) }
+    if (typeof node === 'string') {
+      if (hasLoneSurrogate(node)) return { ok: false, reason: 'lone-surrogate', pointer }
+      return { ok: true, text: JSON.stringify(node) }
+    }
     if (Array.isArray(node)) {
       const parts = []
       for (const [index, item] of node.entries()) {
@@ -161,7 +174,9 @@ export function canonicalJson(value, maxDepth) {
     if (typeof node === 'object') {
       const parts = []
       for (const key of Object.keys(node).sort(byCodeUnitLocal)) {
-        const written = write(node[key], depth + 1, `${pointer}/${escapePointer(key)}`)
+        const at = `${pointer}/${escapePointer(key)}`
+        if (hasLoneSurrogate(key)) return { ok: false, reason: 'lone-surrogate', pointer: at }
+        const written = write(node[key], depth + 1, at)
         if (!written.ok) return written
         parts.push(`${JSON.stringify(key)}:${written.text}`)
       }

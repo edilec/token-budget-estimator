@@ -52,6 +52,43 @@ test('text with an unpaired surrogate is refused rather than counted wrongly', a
   assert.equal(report.summary.checked, 0)
 })
 
+test('an unpaired surrogate in a tool is refused too, wherever in the tool it sits', async () => {
+  /**
+   * The guarantee held for message text and was silently absent for everything
+   * that reaches the wire through a serialised tool. `canonicalJson` ran first,
+   * `JSON.stringify` escaped the lone surrogate into six well-formed
+   * characters, `hasLoneSurrogate` then found nothing, and 47 characters of
+   * escape text were counted as an exact measurement: status pass, uncounted 0,
+   * exit 0. A description, a schema value and a schema key are three different
+   * roads to the same escape.
+   */
+  const broken = `broken ${UNICODE.loneHighSurrogate} here`
+  const places = {
+    description: tool({ description: broken }),
+    'schema value': tool({ parameters: { type: 'object', title: broken } }),
+    'schema key': tool({ parameters: { [broken]: 1 } }),
+  }
+
+  for (const [place, declared] of Object.entries(places)) {
+    const { code, report } = await cliReport(fixture(budgetOf(), requestOf([message()], { tools: [declared] })))
+    assert.equal(code, 2, place)
+    assert.equal(report.status, 'incomplete', place)
+    assert.equal(report.summary.uncounted, 1, place)
+    const refused = findingsFor(report, 'text-lone-surrogate')
+    assert.equal(refused.length, 1, place)
+    assert.equal(refused[0].severity, 'error', place)
+    assert.match(refused[0].message, /unpaired surrogate/, place)
+  }
+
+  // And the well-formed twin still counts, so the guard is not refusing tools
+  // in general.
+  const intact = await cliReport(fixture(budgetOf(), requestOf([message()], {
+    tools: [tool({ description: `intact ${UNICODE.astral} here` })],
+  })))
+  assert.equal(intact.code, 0)
+  assert.equal(intact.report.summary.uncounted, 0)
+})
+
 test('a tool schema is counted from a canonical serialisation, whatever order its keys arrive in', async () => {
   const forward = tool({
     parameters: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer' } }, required: ['query'] },

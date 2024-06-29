@@ -145,3 +145,29 @@ test('canonical JSON refuses a value it cannot write deterministically', () => {
   assert.deepEqual(canonicalJson({ a: Number.NaN }, 10), { ok: false, reason: 'not-serialisable', pointer: '/a' })
   assert.equal(canonicalJson({ a: () => {} }, 10).ok, false)
 })
+
+test('canonical JSON refuses a string carrying an unpaired surrogate, in a value and in a key', () => {
+  /**
+   * `JSON.stringify` turns a lone surrogate into the six characters of an
+   * escape -- well-formed text with no surrogate left in it -- so a tool that
+   * serialised first and checked afterwards counted escape text the provider
+   * will never receive and found nothing wrong with the result. That is exactly
+   * what this package shipped for tool descriptions and schemas.
+   */
+  assert.equal(JSON.stringify(UNICODE.loneHighSurrogate).length, 8, 'six escape characters inside two quotes')
+  assert.equal(hasLoneSurrogate(JSON.stringify(UNICODE.loneHighSurrogate)), false, 'why checking the serialisation cannot work')
+
+  assert.deepEqual(
+    canonicalJson({ description: `broken ${UNICODE.loneHighSurrogate} here` }, 10),
+    { ok: false, reason: 'lone-surrogate', pointer: '/description' },
+  )
+  assert.deepEqual(
+    canonicalJson({ a: { b: [1, UNICODE.loneLowSurrogate] } }, 10),
+    { ok: false, reason: 'lone-surrogate', pointer: '/a/b/1' },
+  )
+  assert.deepEqual(
+    canonicalJson({ [`bro${UNICODE.loneHighSurrogate}ken`]: 1 }, 10),
+    { ok: false, reason: 'lone-surrogate', pointer: `/bro${UNICODE.loneHighSurrogate}ken` },
+  )
+  assert.equal(canonicalJson({ description: `intact ${UNICODE.astral} here` }, 10).ok, true, 'a well-formed pair is not refused')
+})
