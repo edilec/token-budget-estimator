@@ -61,6 +61,22 @@ test('an unpaired surrogate is detected, in both directions and at the end of a 
   assert.equal(hasLoneSurrogate(`${UNICODE.astral}${UNICODE.astral}`), false)
 })
 
+test('two unpaired low surrogates in a row are two lone surrogates, not a pair', () => {
+  /**
+   * The branch that catches a low surrogate arriving first had no case of its
+   * own: every existing case still returned true through the later branch, so
+   * deleting `if (code >= 0xdc00) return true` left the suite green while the
+   * function called consecutive unpaired lows well-formed. Those two code units
+   * would then have been counted as six UTF-8 bytes of substituted U+FFFD --
+   * the exact silently-different number the guarantee exists to prevent.
+   */
+  const two = `${UNICODE.loneLowSurrogate}${UNICODE.loneLowSurrogate}`
+  assert.equal(hasLoneSurrogate(two), true)
+  assert.equal(new TextEncoder().encode(two).length, 6, 'what the encoder would have returned instead')
+  assert.equal(hasLoneSurrogate(`a${UNICODE.loneLowSurrogate}${UNICODE.loneLowSurrogate}b`), true)
+  assert.equal(hasLoneSurrogate(`${UNICODE.loneLowSurrogate}${UNICODE.astral}`), true, 'a low surrogate before a valid pair')
+})
+
 test('the encoder would silently return a different number for an unpaired surrogate', () => {
   /**
    * The justification for refusing rather than counting. `TextEncoder`
