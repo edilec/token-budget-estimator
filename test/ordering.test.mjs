@@ -64,6 +64,40 @@ test('canonical schema serialisation orders keys by code unit', () => {
   assert.equal(written.text, '{"Z":3,"a":2,"a-b":4,"a_b":1}')
 })
 
+test('the report is emitted in the documented order, not in the order it was produced', async () => {
+  /**
+   * `compareFindings` had a unit test; the report had none. Deleting
+   * `.sort(compareFindings)` -- its only call site -- changed stdout byte for
+   * byte and left all 207 tests green, because every ordering fixture happened
+   * to be produced in sorted order already. That is report-contract defect
+   * class 7: an assertion that cannot fail is not a test.
+   *
+   * This fixture is produced in an order the sort has to change. The output
+   * reservation is judged before a single message is counted, so
+   * `output-reservation-below-minimum` at `/reserveOutputTokens` is produced
+   * first and has to be emitted last: `/messages` precedes it by code unit.
+   */
+  const budget = budgetOf(profileOf({ contextTokens: 200, reserveOutputTokens: 32, minOutputTokens: 128 }))
+  const request = requestOf([
+    message({ id: 'system-turn', text: 'x'.repeat(400) }),
+    message({ id: 'user-turn', role: 'user', text: 'y'.repeat(50) }),
+  ])
+
+  const { report, code } = await cliReport(fixture(budget, request))
+  assert.equal(code, 1)
+  assert.deepEqual(
+    report.findings.map((finding) => [finding.location.pointer, finding.ruleId]),
+    [
+      ['/messages', 'budget-exceeded'],
+      ['/messages/0', 'budget-contributor'],
+      ['/messages/1', 'budget-contributor'],
+      ['/reserveOutputTokens', 'output-reservation-below-minimum'],
+    ],
+    'the reservation finding is produced first and must be emitted last',
+  )
+  assert.ok(byCodeUnit('/messages', '/reserveOutputTokens') < 0, 'the pair the case turns on')
+})
+
 test('two runs over identical inputs produce byte-identical stdout', async () => {
   const files = fixture(budgetOf(), requestOf([
     message({ id: 'Zebra' }),
