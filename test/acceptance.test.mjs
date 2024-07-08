@@ -89,6 +89,29 @@ test('an unpaired surrogate in a tool is refused too, wherever in the tool it si
   assert.equal(intact.report.summary.uncounted, 0)
 })
 
+test('a message name costs its declared overhead, and an unnamed message does not', async () => {
+  /**
+   * `perMessageName` is a documented component of the formula
+   * `perMessage + (name ? perMessageName + count(name) : 0)`, and removing it
+   * from `countMessage` left all 207 tests green while every named message got
+   * one token cheaper. The difference between the two runs below is the name
+   * alone, so it is exactly the name's cost: its own characters plus the
+   * declared constant.
+   */
+  const profile = profileOf({ overhead: { perMessage: 4, perMessageName: 7, perToolDefinition: 8, toolsPreamble: 16, replyPrimer: 3 } })
+  const named = await apiReport(fixture(budgetOf(profile), requestOf([message({ name: 'customer-4821' })])))
+  const anonymous = await apiReport(fixture(budgetOf(profile), requestOf([message()])))
+
+  assert.equal(named.status, 'pass')
+  assert.equal(anonymous.status, 'pass')
+  assert.equal(named.summary.overheadTokens - anonymous.summary.overheadTokens, 7, 'the declared constant, not zero')
+  assert.equal(
+    named.summary.tokens - anonymous.summary.tokens,
+    7 + countExact('utf8-bytes', 'customer-4821'),
+    'the constant plus the name itself',
+  )
+})
+
 test('a tool schema is counted from a canonical serialisation, whatever order its keys arrive in', async () => {
   const forward = tool({
     parameters: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer' } }, required: ['query'] },
@@ -198,6 +221,32 @@ test('a reservation that swallows the window is refused, not turned into a negat
   assert.equal(code, 2)
   assert.ok(raisedRules(report).includes('output-reservation-exceeds-context'))
   assert.equal(report.summary.tokens, 0)
+})
+
+test('a request-level reservation that swallows the window is refused by its own guard', async () => {
+  /**
+   * There are two guards, and only one of them had a case. The profile-level
+   * one in `src/budget.mjs` fires while the budget is compiled; the
+   * request-level one fires after the override is applied, and every existing
+   * case reached the first before the second could matter. Removing the
+   * request-level check left the suite green and published
+   * `inputAllowance: -99991807` in the summary -- a negative allowance that
+   * every later comparison then read as "nothing fits".
+   *
+   * The profile here is entirely reasonable: 8192 with 1024 reserved. Only the
+   * request asks for more window than exists.
+   */
+  const { code, report } = await cliReport(fixture(
+    budgetOf(profileOf({ contextTokens: 8192, reserveOutputTokens: 1024 })),
+    requestOf([message()], { reserveOutputTokens: 99999999 }),
+  ))
+
+  assert.equal(code, 2)
+  assert.equal(report.status, 'incomplete')
+  assert.ok(raisedRules(report).includes('output-reservation-exceeds-context'))
+  assert.equal(report.summary.inputAllowance, 0, 'never negative')
+  assert.equal(report.summary.reserveOutputTokens, 99999999, 'the override is what was judged')
+  assert.equal(raisedRules(report).includes('budget-exceeded'), false, 'the run stopped before it pretended to decide')
 })
 
 test('an estimate whose band straddles the allowance is incomplete, never an optimistic pass', async () => {
