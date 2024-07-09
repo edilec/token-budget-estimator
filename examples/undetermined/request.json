@@ -4,11 +4,7 @@
     {
       "id": "system-turn",
       "role": "system",
-      "text": "You are the support triage assistant for a multilingual help desk.\nAnswer in the language the customer wrote in, and cite the article you used.",
-      "counted": {
-        "tokens": 31,
-        "tokenizer": "o200k_base"
-      }
+      "text": "You are the support triage assistant for a multilingual help desk.\nAnswer in the language the customer wrote in, and cite the article you used."
     },
     {
       "id": "customer-turn",

@@ -75,20 +75,29 @@ test('the undetermined example exits 2 because the band straddles the allowance'
   assert.ok(report.summary.tokensLower <= report.summary.inputAllowance)
   assert.ok(report.summary.tokensUpper > report.summary.inputAllowance)
   assert.ok(report.summary.estimatedParts > 0, 'the parts were estimated')
-  assert.ok(report.summary.declaredTokens > 0, 'and one part carries a measured count beside them')
+  assert.equal(report.summary.uncounted, 0, 'nothing was left uncounted; the band is what is undecided')
 })
 
 test('the three examples share one request, so only the budget differs', async () => {
-  const fits = JSON.parse(await readFile(example('fits/request.json'), 'utf8'))
-  const over = JSON.parse(await readFile(example('over-budget/request.json'), 'utf8'))
-  assert.deepEqual(over, fits, 'over-budget is the same request against a smaller window')
-
-  const undetermined = JSON.parse(await readFile(example('undetermined/request.json'), 'utf8'))
-  const withoutCounts = {
-    ...undetermined,
-    messages: undetermined.messages.map(({ counted, ...rest }) => rest),
+  /**
+   * The claim in the README and the CHANGELOG is that the three examples differ
+   * only in the budget file. Two of them did; the undetermined one also carried
+   * an extra counted block, which was load-bearing for its numbers, so the
+   * sentence a reader checks by diffing was false. The three request files are
+   * now the same bytes, and this compares the bytes rather than a normalised
+   * shape -- a deepEqual of parsed JSON would pass again the day one of them
+   * grows a field the other lacks a value for.
+   */
+  const fits = await readFile(example('fits/request.json'), 'utf8')
+  for (const name of ['over-budget', 'undetermined']) {
+    assert.equal(await readFile(example(`${name}/request.json`), 'utf8'), fits, `${name} is the same request`)
   }
-  assert.deepEqual(withoutCounts, fits, 'undetermined adds only a counted block')
+
+  const budgets = []
+  for (const name of ['fits', 'over-budget', 'undetermined']) {
+    budgets.push(await readFile(example(`${name}/budget.json`), 'utf8'))
+  }
+  assert.equal(new Set(budgets).size, 3, 'and the budget is the only thing that differs')
 })
 
 test('the README quick start commands are the ones that exist', async () => {
