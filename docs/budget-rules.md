@@ -55,6 +55,12 @@ total = replyPrimer
   text in the declared unit.
 - A `counted` block replaces the count of the message **text** (or of the tool
   **schema**). The surrounding constants still apply.
+- A string carrying an unpaired surrogate is refused where it is found, before
+  anything is serialised. `JSON.stringify` escapes a lone surrogate into the six
+  characters `\uD83D`, which are well-formed and contain no surrogate at all, so
+  a serialise-then-check order counts escape text the provider never receives
+  and finds nothing wrong with the result. This applies to a tool description, a
+  schema value and a schema key alike.
 - The tool schema is serialised canonically: object keys in code-unit order, no
   whitespace. That makes the count identical on every machine. It is **not** a
   claim about what a provider sends on the wire — a provider may pretty-print,
@@ -95,7 +101,7 @@ total = replyPrimer
 | `profile-missing` | error | `model` names a profile the document does not declare. |
 | `request-invalid` | error | The request document is malformed. |
 | `role-unknown` | error | A message declares a role outside the documented set, so its overhead is unknown. |
-| `text-lone-surrogate` | error | Text contains an unpaired surrogate, which no UTF-8 encoder can represent. |
+| `text-lone-surrogate` | error | Text, a tool description, a schema value or a schema key contains an unpaired surrogate, which no UTF-8 encoder can represent. |
 | `tool-duplicate` | error | Two tools share a name. |
 | `tool-invalid` | error | A tool is malformed or carries an unknown key. |
 | `tool-schema-invalid` | error | A tool's `parameters` is not an object, or holds a value that cannot be written deterministically. |

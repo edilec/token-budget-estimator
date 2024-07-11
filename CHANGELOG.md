@@ -33,6 +33,45 @@ All notable changes to this project are documented in this file.
 - the rule catalog, both document formats, the counting formula and the limits
   in `docs/budget-rules.md`.
 
+### Fixed
+
+Found by adversarial verification after the suite was green, reproduced, and
+each now held by a test that fails when the fix is removed.
+
+- **The "unpaired surrogate is refused" guarantee did not hold for tools.** A
+  lone surrogate in a tool description, a schema value or a schema key was
+  serialised before it was checked: `JSON.stringify` escaped it into six
+  well-formed characters, `hasLoneSurrogate` then found nothing, and 47
+  characters of escape text that no provider will ever receive were counted as
+  an exact measurement -- status `pass`, `uncounted: 0`, exit 0, contradicting
+  the README, `docs/budget-rules.md` and this changelog. `canonicalJson` now
+  refuses the string where it finds it, for a key as well as a value, and the
+  run is `incomplete` and exits 2 as it always claimed.
+- **The documented finding order was unpinned.** Deleting `.sort(compareFindings)`
+  -- its only call site -- changed stdout byte for byte and left all 207 tests
+  green, because every ordering fixture happened to be produced in sorted order
+  already. `test/ordering.test.mjs` now drives a fixture the sort has to
+  reorder and asserts the emitted order.
+- **`perMessageName` was unpinned.** Removing it from `countMessage` left the
+  suite green while every named message became one token cheaper than the
+  documented formula. A test now measures the difference between a named and an
+  unnamed message and asserts it is the declared constant plus the name.
+- **The request-level output reservation had no case of its own.** Both guards
+  raise `output-reservation-exceeds-context`, and every existing case reached
+  the profile-level one first, so removing the request-level check left the
+  suite green and published a negative `inputAllowance`. A case with a
+  reasonable profile and an unreasonable request override now covers it.
+- **`hasLoneSurrogate` was only half pinned.** Deleting its leading-low-surrogate
+  branch left the suite green although the function then called two consecutive
+  unpaired low surrogates well-formed -- six bytes of substituted U+FFFD, which
+  is the number the guarantee exists to prevent.
+- **The three examples did not differ only in the budget file.** The
+  undetermined one also carried a `counted` block that was load-bearing for its
+  numbers, so the sentence a reader checks by diffing was false. All three
+  requests are now the same bytes, the budget is the only variable, and the
+  three exit codes are still 0, 1 and 2. The `counted` block keeps its
+  documentation in `docs/budget-rules.md` and its cases in the suite.
+
 ### Guarded
 
 These are the defects this package was built against rather than audited for,

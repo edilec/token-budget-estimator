@@ -144,9 +144,12 @@ Each of these has a test that fails when the guarantee is removed.
 - **The unit is the unit.** An astral character is one scalar, two UTF-16 code
   units and four UTF-8 bytes, and the three profiles return three different
   totals for the same text.
-- **An unpaired surrogate is refused, not encoded.** Every conforming UTF-8
-  encoder substitutes U+FFFD, which is three bytes, so counting it would return
-  a silently different number.
+- **An unpaired surrogate is refused, not encoded**, wherever it arrives:
+  message text, a tool description, a schema value or a schema key. Every
+  conforming UTF-8 encoder substitutes U+FFFD, which is three bytes, so counting
+  it would return a silently different number — and `JSON.stringify` escapes it
+  into six characters instead, so a tool schema is checked before it is
+  serialised rather than after.
 - **No ratio is invented.** An unsupported tokenizer with no declared
   `estimateCharsPerToken` counts nothing.
 - **A declared count must name the profile's tokenizer.** A count from another
