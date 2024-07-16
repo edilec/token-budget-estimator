@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { OVERHEAD_KEYS, ROLES } from '../src/index.mjs'
 import {
-  apiReport, budgetOf, estimatingProfile, findingsFor, fixture, message,
+  apiReport, budgetOf, cliReport, estimatingProfile, findingsFor, fixture, message,
   profileOf, raisedRules, requestOf, tool,
 } from './support.mjs'
 
@@ -111,6 +111,54 @@ test('a counted block must carry both a number and the tokenizer it came from', 
   }
   const fine = await apiReport(fixture(budgetOf(), requestOf([message({ counted: { tokens: 0, tokenizer: 'utf8-bytes' } })])))
   assert.equal(fine.status, 'pass', 'zero is a legitimate measured count')
+})
+
+test('equal tokenizer declarations pass and visibly different declarations remain a mismatch', async () => {
+  const files = (profileTokenizer, countedTokenizer) => fixture(
+    budgetOf(estimatingProfile({ tokenizer: profileTokenizer })),
+    requestOf([message({ counted: { tokens: 41, tokenizer: countedTokenizer } })]),
+  )
+  const equal = await cliReport(files('o200k_base', 'o200k_base'))
+  assert.equal(equal.code, 0)
+  assert.equal(equal.report.status, 'pass')
+  assert.equal(equal.report.summary.declaredTokens, 41)
+  assert.equal(findingsFor(equal.report, 'declared-count-tokenizer-mismatch').length, 0)
+
+  const different = await cliReport(files('o200k_base', 'cl100k_base'))
+  assert.equal(different.code, 2)
+  assert.equal(different.report.status, 'incomplete')
+  assert.equal(findingsFor(different.report, 'declared-count-tokenizer-mismatch').length, 1)
+  assert.equal(different.report.summary.declaredTokens, 0)
+})
+
+test('a counted tokenizer with a hidden mark or trailing space is invalid before comparison', async () => {
+  const tokenizer = 'o200k_base'
+  for (const suffix of [String.fromCharCode(0x200e), ' ']) {
+    const { code, report } = await cliReport(fixture(
+      budgetOf(estimatingProfile({ tokenizer })),
+      requestOf([message({ counted: { tokens: 41, tokenizer: tokenizer + suffix } })]),
+    ))
+    assert.equal(code, 2)
+    assert.equal(report.status, 'incomplete')
+    assert.deepEqual(raisedRules(report), ['declared-count-invalid'])
+    assert.equal(findingsFor(report, 'declared-count-invalid')[0].location.pointer, '/messages/0/counted/tokenizer')
+    assert.equal(report.summary.declaredTokens, 0)
+  }
+})
+
+test('a profile tokenizer with a hidden mark or trailing space is invalid before comparison', async () => {
+  const tokenizer = 'o200k_base'
+  for (const suffix of [String.fromCharCode(0x200e), ' ']) {
+    const { code, report } = await cliReport(fixture(
+      budgetOf(estimatingProfile({ tokenizer: tokenizer + suffix })),
+      requestOf([message({ counted: { tokens: 41, tokenizer } })]),
+    ))
+    assert.equal(code, 2)
+    assert.equal(report.status, 'incomplete')
+    assert.deepEqual(raisedRules(report), ['profile-invalid'])
+    assert.equal(findingsFor(report, 'profile-invalid')[0].location.pointer, '/profiles/house/tokenizer')
+    assert.equal(report.summary.declaredTokens, 0)
+  }
 })
 
 test('a tool whose parameters are not an object is refused rather than serialised', async () => {
